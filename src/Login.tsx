@@ -256,7 +256,7 @@ export default function Login({
             >
               회원가입 하러가기
             </button>
-            {/*
+
             {onGoAdminLogin ? (
               <button
                 type="button"
@@ -266,7 +266,6 @@ export default function Login({
                 관리자 로그인
               </button>
             ) : null}
-             */}
           </form>
         </div>
       </div>
