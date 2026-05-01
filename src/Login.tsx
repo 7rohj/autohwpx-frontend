@@ -7,7 +7,7 @@ type LoginProps = {
   onGoAdminLogin?: () => void
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080"
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "https://api.autohwpx.com"
 
 function RecentBadge() {
   return (
@@ -256,7 +256,7 @@ export default function Login({
             >
               회원가입 하러가기
             </button>
-
+            {/*
             {onGoAdminLogin ? (
               <button
                 type="button"
@@ -266,6 +266,7 @@ export default function Login({
                 관리자 로그인
               </button>
             ) : null}
+             */}
           </form>
         </div>
       </div>

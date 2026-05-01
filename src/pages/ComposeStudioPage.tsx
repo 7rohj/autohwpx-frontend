@@ -146,7 +146,7 @@ type SavedSelectionHistoryItem = {
   savedAt: string
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080"
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "https://api.autohwpx.com"
 
 const GUIDE_VIDEO_URL =
   import.meta.env.VITE_STUDIO_GUIDE_VIDEO_URL ?? "/videos/studio-guide.mp4"
