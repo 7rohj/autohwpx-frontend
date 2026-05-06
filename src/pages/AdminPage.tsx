@@ -8,6 +8,7 @@ import {
   Activity,
   RefreshCw,
   Search,
+  Download,
 } from "lucide-react"
 
 type AdminPageProps = {
@@ -21,6 +22,7 @@ type AdminUserItem = {
   role: string
   grade: string
   status: string
+  provider: string
   createdAt: string | null
   lastLoginAt: string | null
 }
@@ -30,6 +32,7 @@ type AdminLoginLogItem = {
   userId: number | null
   email: string
   success: boolean
+  provider: string
   loginAt: string | null
   message: string | null
 }
@@ -69,6 +72,17 @@ function maskApiKey(value?: string | null) {
   return `${value.slice(0, 8)}••••••••${value.slice(-6)}`
 }
 
+function providerLabel(provider?: string | null) {
+  const value = (provider ?? "local").toLowerCase()
+
+  if (value === "google") return "Google"
+  if (value === "kakao") return "Kakao"
+  if (value === "naver") return "Naver"
+  if (value === "local") return "Local"
+
+  return value
+}
+
 export default function AdminPage({ onNavigate, onLogout }: AdminPageProps) {
   const [users, setUsers] = useState<AdminUserItem[]>([])
   const [loginLogs, setLoginLogs] = useState<AdminLoginLogItem[]>([])
@@ -77,6 +91,7 @@ export default function AdminPage({ onNavigate, onLogout }: AdminPageProps) {
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState("")
   const [keyword, setKeyword] = useState("")
+  const [backupDownloading, setBackupDownloading] = useState(false)
 
   useEffect(() => {
     const adminToken = localStorage.getItem("adminToken") ?? ""
@@ -156,14 +171,17 @@ export default function AdminPage({ onNavigate, onLogout }: AdminPageProps) {
         fetch(`${API_BASE_URL}/api/v1/admin/users`, {
           method: "GET",
           headers: { "X-Admin-Token": adminToken },
+          credentials: "include",
         }),
         fetch(`${API_BASE_URL}/api/v1/admin/login-logs`, {
           method: "GET",
           headers: { "X-Admin-Token": adminToken },
+          credentials: "include",
         }),
         fetch(`${API_BASE_URL}/api/v1/admin/api-keys`, {
           method: "GET",
           headers: { "X-Admin-Token": adminToken },
+          credentials: "include",
         }),
       ])
 
@@ -181,6 +199,52 @@ export default function AdminPage({ onNavigate, onLogout }: AdminPageProps) {
       setRefreshing(false)
     }
   }
+
+  async function handleDownloadDbBackup() {
+    const adminToken = localStorage.getItem("adminToken") ?? ""
+
+    if (!adminToken) {
+      alert("관리자 토큰이 없습니다.")
+      return
+    }
+
+    try {
+      setBackupDownloading(true)
+
+      const response = await fetch(`${API_BASE_URL}/api/v1/admin/backup/db`, {
+        method: "GET",
+        headers: {
+          "X-Admin-Token": adminToken,
+        },
+        credentials: "include",
+      })
+
+      if (!response.ok) {
+        throw new Error("DB 백업 다운로드에 실패했습니다.")
+      }
+
+      const blob = await response.blob()
+
+      const contentDisposition = response.headers.get("Content-Disposition")
+      const filenameMatch = contentDisposition?.match(/filename="?([^"]+)"?/)
+      const filename = filenameMatch?.[1] ?? `hwpx-backup-${Date.now()}.db`
+
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error(err)
+      alert(err instanceof Error ? err.message : "DB 백업 다운로드 중 오류가 발생했습니다.")
+    } finally {
+      setBackupDownloading(false)
+    }
+  }
+
 
   async function handleChangeGrade(userId: number, grade: string) {
     const adminToken = localStorage.getItem("adminToken") ?? ""
@@ -305,6 +369,7 @@ export default function AdminPage({ onNavigate, onLogout }: AdminPageProps) {
         headers: {
           "X-Admin-Token": adminToken,
         },
+        credentials: "include",
       })
 
       const data = await response.json()
@@ -332,7 +397,8 @@ export default function AdminPage({ onNavigate, onLogout }: AdminPageProps) {
         item.email.toLowerCase().includes(q) ||
         item.role.toLowerCase().includes(q) ||
         item.grade.toLowerCase().includes(q) ||
-        item.status.toLowerCase().includes(q)
+        item.status.toLowerCase().includes(q) ||
+        providerLabel(item.provider).toLowerCase().includes(q)
     )
   }, [users, keyword])
 
@@ -342,6 +408,7 @@ export default function AdminPage({ onNavigate, onLogout }: AdminPageProps) {
     return loginLogs.filter(
       (item) =>
         item.email.toLowerCase().includes(q) ||
+        providerLabel(item.provider).toLowerCase().includes(q) ||
         (item.message ?? "").toLowerCase().includes(q)
     )
   }, [loginLogs, keyword])
@@ -416,10 +483,19 @@ export default function AdminPage({ onNavigate, onLogout }: AdminPageProps) {
                   <input
                     value={keyword}
                     onChange={(e) => setKeyword(e.target.value)}
-                    placeholder="이메일, 등급, 상태 검색"
+                    placeholder="이메일, provider, 등급, 상태 검색"
                     className="w-full bg-transparent outline-none placeholder:text-[#9aa7bf] sm:w-64"
                   />
                 </div>
+
+                <button
+                  onClick={handleDownloadDbBackup}
+                  disabled={backupDownloading}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#d7e5ff] bg-white px-4 py-3 text-sm font-semibold text-[#1f69ef] hover:bg-[#f5f9ff] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Download className={`h-4 w-4 ${backupDownloading ? "animate-bounce" : ""}`} />
+                  {backupDownloading ? "백업 다운로드 중..." : "DB 백업 다운로드"}
+                </button>
 
                 <button
                   onClick={reloadAdminData}
@@ -497,6 +573,7 @@ export default function AdminPage({ onNavigate, onLogout }: AdminPageProps) {
                         <tr>
                           <th className="px-4 py-3 text-center font-semibold">ID</th>
                           <th className="px-4 py-3 text-center font-semibold">이메일</th>
+                          <th className="px-4 py-3 text-center font-semibold">Provider</th>
                           <th className="px-4 py-3 text-center font-semibold">등급</th>
                           <th className="px-4 py-3 text-center font-semibold">권한</th>
                           <th className="px-4 py-3 text-center font-semibold">상태</th>
@@ -509,7 +586,7 @@ export default function AdminPage({ onNavigate, onLogout }: AdminPageProps) {
                       <tbody>
                         {filteredUsers.length === 0 ? (
                           <tr className="border-t border-[#dbe7ff] bg-white">
-                            <td colSpan={9} className="px-4 py-8 text-center text-[#63708a]">
+                            <td colSpan={10} className="px-4 py-8 text-center text-[#63708a]">
                               표시할 회원이 없습니다.
                             </td>
                           </tr>
@@ -518,6 +595,11 @@ export default function AdminPage({ onNavigate, onLogout }: AdminPageProps) {
                             <tr key={item.id} className="border-t border-[#dbe7ff] bg-white">
                               <td className="px-4 py-3 text-center text-[#1a2540]">{item.id}</td>
                               <td className="px-4 py-3 text-center text-[#1a2540]">{item.email}</td>
+                              <td className="px-4 py-3 text-center">
+                                <span className="rounded-full bg-[#eef4ff] px-3 py-1 text-xs font-semibold text-[#1f69ef]">
+                                  {providerLabel(item.provider)}
+                                </span>
+                              </td>
                               <td className="px-4 py-3 text-center">
                                 <span className="rounded-full bg-[#eef4ff] px-3 py-1 text-xs font-semibold text-[#1f69ef]">
                                   {item.grade}
@@ -618,6 +700,7 @@ export default function AdminPage({ onNavigate, onLogout }: AdminPageProps) {
                         <tr>
                           <th className="px-4 py-3 text-center font-semibold">ID</th>
                           <th className="px-4 py-3 text-center font-semibold">이메일</th>
+                          <th className="px-4 py-3 text-center font-semibold">Provider</th>
                           <th className="px-4 py-3 text-center font-semibold">결과</th>
                           <th className="px-4 py-3 text-center font-semibold">메시지</th>
                           <th className="px-4 py-3 text-center font-semibold">로그인 시각</th>
@@ -626,7 +709,7 @@ export default function AdminPage({ onNavigate, onLogout }: AdminPageProps) {
                       <tbody>
                         {filteredLogs.length === 0 ? (
                           <tr className="border-t border-[#dbe7ff] bg-white">
-                            <td colSpan={5} className="px-4 py-8 text-center text-[#63708a]">
+                            <td colSpan={6} className="px-4 py-8 text-center text-[#63708a]">
                               표시할 로그인 로그가 없습니다.
                             </td>
                           </tr>
@@ -635,6 +718,11 @@ export default function AdminPage({ onNavigate, onLogout }: AdminPageProps) {
                             <tr key={item.id} className="border-t border-[#dbe7ff] bg-white">
                               <td className="px-4 py-3 text-center text-[#1a2540]">{item.id}</td>
                               <td className="px-4 py-3 text-center text-[#1a2540]">{item.email}</td>
+                              <td className="px-4 py-3 text-center">
+                                <span className="rounded-full bg-[#eef4ff] px-3 py-1 text-xs font-semibold text-[#1f69ef]">
+                                  {providerLabel(item.provider)}
+                                </span>
+                              </td>
                               <td className="px-4 py-3 text-center">
                                 <span
                                   className={`rounded-full px-3 py-1 text-xs font-semibold ${
