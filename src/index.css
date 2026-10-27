@@ -42,3 +42,23 @@ html, body, #root {
     box-shadow: inset 0 0 0 2px #d4a000;
   }
 }
+
+/* Visual mapping: preserve full-page preview geometry and show connected targets. */
+.autohwpx-mapping-preview > div { height: 560px; border-radius: 6px; }
+.autohwpx-mapping-preview .autohwpx-linked-block {
+  outline: 2px solid #0f62fe;
+  outline-offset: 2px;
+  background-color: rgba(15,98,254,0.08) !important;
+}
+.autohwpx-mapping-preview .autohwpx-linked-block::after {
+  content: "";
+  position: absolute;
+  right: -7px;
+  top: calc(50% - 5px);
+  width: 10px;
+  height: 10px;
+  background: #0f62fe;
+  border: 2px solid white;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px #0f62fe;
+}
