@@ -492,6 +492,23 @@ export default function ComposeStudioPage({
     }
   }, [templateRole, sourceRole, activeSide, selectedBoxId])
 
+  // 파일 선택은 미리보기 로딩과 별개입니다. 서버 반영은 "파일 불러오기" 클릭 시 시작합니다.
+  function handleSelectDocumentFile(kind: "template" | "source", file: File) {
+    if (!file.name.toLowerCase().endsWith(".hwpx")) {
+      alert(".hwpx 확장자 파일만 업로드할 수 있습니다.")
+      return
+    }
+
+    if (kind === "template") {
+      setTemplateFile(file)
+    } else {
+      setSourceFile(file)
+    }
+    setSessionId("")
+    resetPreviewState()
+    alert("파일 불러오기 버튼을 클릭해주세요.")
+  }
+
   async function loadSampleFile(url: string, filename: string, type: string) {
     const res = await fetch(url)
     if (!res.ok) {
@@ -510,14 +527,14 @@ export default function ComposeStudioPage({
           "sample-template.hwpx",
           "application/octet-stream"
         )
-        setTemplateFile(file)
+        handleSelectDocumentFile("template", file)
       } else {
         const file = await loadSampleFile(
           "/samples/sample-source.hwpx",
           "sample-source.hwpx",
           "application/octet-stream"
         )
-        setSourceFile(file)
+        handleSelectDocumentFile("source", file)
       }
     } catch (err) {
       console.error(err)
@@ -722,6 +739,7 @@ export default function ComposeStudioPage({
       setTemplateBoxes([])
       setSourceBoxes([])
       setSelectedBoxId(null)
+      alert("파일을 정상적으로 불러왔습니다.")
     } catch (err) {
       console.error(err)
       setError(err instanceof Error ? err.message : "업로드 중 오류가 발생했습니다.")
@@ -1218,7 +1236,7 @@ export default function ComposeStudioPage({
 
               <section className="mb-6 grid gap-4 lg:grid-cols-2">
                 {/* 템플릿 */}
-                <div className="border border-[#e0e0e0] bg-white p-6">
+                <div className={`border border-[#e0e0e0] bg-white p-6 ${templateFile && !sessionId ? "autohwpx-upload-pending" : ""}`}>
                   <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-[#0f62fe]">
                     <Layers3 className="h-4 w-4" />
                     템플릿 파일
@@ -1227,19 +1245,15 @@ export default function ComposeStudioPage({
                   {/* 사용자 문서 업로드: 기존 preview API와 파일 상태를 그대로 사용 */}
                   <label className={`flex h-[56px] items-center justify-center gap-2 rounded-none border border-dashed border-[#c6c6c6] bg-[#f4f4f4] text-sm font-medium text-[#525252] ${uploading ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:border-[#0f62fe] hover:bg-[#edf5ff] hover:text-[#0f62fe]"}`}>
                     <FileUp className="h-4 w-4" />
-                    파일 업로드
+                    파일 업로드 <span className="text-xs text-[#6f6f6f]">(.hwpx 확장자 첨부가능)</span>
                     <input
                       type="file"
-                      accept=".hwpx,.hwp"
+                      accept=".hwpx"
                       className="sr-only"
                       disabled={uploading}
                       onChange={(e) => {
                         const file = e.currentTarget.files?.[0]
-                        if (file) {
-                          setTemplateFile(file)
-                          setSessionId("")
-                          resetPreviewState()
-                        }
+                        if (file) handleSelectDocumentFile("template", file)
                         e.currentTarget.value = ""
                       }}
                     />
@@ -1262,7 +1276,7 @@ export default function ComposeStudioPage({
                 </div>
 
                 {/* 원본문서 */}
-                <div className="border border-[#e0e0e0] bg-white p-6">
+                <div className={`border border-[#e0e0e0] bg-white p-6 ${sourceFile && !sessionId ? "autohwpx-upload-pending" : ""}`}>
                   <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-[#0f62fe]">
                     <Layers3 className="h-4 w-4" />
                     원본문서 파일
@@ -1271,19 +1285,15 @@ export default function ComposeStudioPage({
                   {/* 사용자 문서 업로드: 기존 preview API와 파일 상태를 그대로 사용 */}
                   <label className={`flex h-[56px] items-center justify-center gap-2 rounded-none border border-dashed border-[#c6c6c6] bg-[#f4f4f4] text-sm font-medium text-[#525252] ${uploading ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:border-[#0f62fe] hover:bg-[#edf5ff] hover:text-[#0f62fe]"}`}>
                     <FileUp className="h-4 w-4" />
-                    파일 업로드
+                    파일 업로드 <span className="text-xs text-[#6f6f6f]">(.hwpx 확장자 첨부가능)</span>
                     <input
                       type="file"
-                      accept=".hwpx,.hwp"
+                      accept=".hwpx"
                       className="sr-only"
                       disabled={uploading}
                       onChange={(e) => {
                         const file = e.currentTarget.files?.[0]
-                        if (file) {
-                          setSourceFile(file)
-                          setSessionId("")
-                          resetPreviewState()
-                        }
+                        if (file) handleSelectDocumentFile("source", file)
                         e.currentTarget.value = ""
                       }}
                     />
@@ -1336,13 +1346,24 @@ export default function ComposeStudioPage({
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={handleClearPreviewBoxes}
-                        className="inline-flex items-center gap-2 rounded-none border border-red-100 bg-red-50 px-3 py-2 text-sm font-semibold text-red-500 transition hover:bg-red-100"
-                      >
-                        <RefreshCcw className="h-4 w-4" />
-                      </button>
+                      <div className="group relative inline-flex">
+                        <button
+                          type="button"
+                          onClick={handleClearPreviewBoxes}
+                          aria-label="지정된 내용 초기화"
+                          aria-describedby="clear-selection-tooltip"
+                          className="inline-flex items-center gap-2 rounded-none border border-red-100 bg-red-50 px-3 py-2 text-sm font-semibold text-red-500 transition hover:bg-red-100"
+                        >
+                          <RefreshCcw className="h-4 w-4" />
+                        </button>
+                        <span
+                          id="clear-selection-tooltip"
+                          role="tooltip"
+                          className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 w-max max-w-[240px] -translate-x-1/2 rounded bg-[#262626] px-3 py-2 text-xs font-medium text-white opacity-0 shadow-md transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+                        >
+                          지정된 내용을 초기화합니다
+                        </span>
+                      </div>
 
                       <button
                         onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
