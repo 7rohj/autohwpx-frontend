@@ -30,6 +30,13 @@ html, body, #root {
   box-shadow: inset 0 0 0 2px #eab308, 0 0 0 3px rgba(234, 179, 8, 0.16);
 }
 
+.autohwpx-tutorial-highlight {
+  outline: 3px solid #facc15;
+  outline-offset: 3px;
+  box-shadow: 0 0 0 5px rgba(250, 204, 21, 0.18);
+  transition: outline 0.2s ease, box-shadow 0.2s ease;
+}
+
 /* Visual mapping: preserve full-page preview geometry and show connected targets. */
 .autohwpx-mapping-preview > div { height: 560px; border-radius: 6px; }
 .autohwpx-mapping-preview .autohwpx-linked-block {

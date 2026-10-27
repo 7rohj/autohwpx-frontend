@@ -5,6 +5,7 @@ import ComposePageParagraphLayer from "../components/ComposePageParagraphLayer"
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
   FileUp,
+  Download,
   Layers3,
   CheckCircle2,
   ChevronLeft,
@@ -310,14 +311,8 @@ export default function ComposeStudioPage({
 }: ComposeStudioPageProps) {
   const [templateFile, setTemplateFile] = useState<File | null>(null)
   const [sourceFile, setSourceFile] = useState<File | null>(null)
-  const [loadButtonClicked, setLoadButtonClicked] = useState(false)
-  const uploadStep = !templateFile
-    ? "template"
-    : !sourceFile
-      ? "source"
-      : !loadButtonClicked
-        ? "load"
-        : null
+  const [previewReady, setPreviewReady] = useState(false)
+  const [downloadStarted, setDownloadStarted] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [sessionId, setSessionId] = useState("")
   const [error, setError] = useState("")
@@ -364,6 +359,22 @@ export default function ComposeStudioPage({
   const [mappingError, setMappingError] = useState("")
   const [connectorLines, setConnectorLines] = useState<ConnectorLine[]>([])
   const [pendingConnector, setPendingConnector] = useState<ConnectorLine | null>(null)
+  const workflowGenerationRef = useRef(0)
+  const guideStep = !templateFile
+    ? "uploadTemplate"
+    : !sourceFile
+      ? "uploadSource"
+      : !previewReady
+        ? "loadFiles"
+        : applying
+          ? null
+          : pendingTemplate
+            ? "selectSourceTarget"
+            : applyResult
+              ? applyResult.downloadUrl && !downloadStarted ? "saveFile" : "completed"
+              : visualMappings.length > 0
+                ? "execute"
+                : "selectTemplateStyle"
   const mappingContainerRef = useRef<HTMLDivElement | null>(null)
   const templateMappingRef = useRef<HTMLDivElement | null>(null)
   const sourceMappingRef = useRef<HTMLDivElement | null>(null)
@@ -447,7 +458,10 @@ export default function ComposeStudioPage({
     try {
       if (!existingTemplate) await postVisualSelection("template", pendingTemplate, label)
       await postVisualSelection("source", endpoint, label)
+      workflowGenerationRef.current += 1
       setVisualMappings(prev => [...prev, { label, template: pendingTemplate, source: endpoint }])
+      setApplyResult(null)
+      setDownloadStarted(false)
       const savedAt = new Date().toISOString()
       setSavedSelectionHistory(prev => [
         ...(!existingTemplate ? [{ id: `${label}_template`, sessionId, side: "template" as const, page: pendingTemplate.page, label,
@@ -672,7 +686,7 @@ export default function ComposeStudioPage({
     } else {
       setSourceFile(file)
     }
-    setLoadButtonClicked(false)
+    setPreviewReady(false)
     setSessionId("")
     resetPreviewState()
     if (shouldShowUploadAlert) {
@@ -714,6 +728,7 @@ export default function ComposeStudioPage({
   }
 
   function resetPreviewState() {
+    workflowGenerationRef.current += 1
     setCurrentPage(1)
     setActiveSide("template")
     setActivePanel("paragraph")
@@ -733,6 +748,8 @@ export default function ComposeStudioPage({
     setSelectedBoxId(null)
 
     setApplyResult(null)
+    setPreviewReady(false)
+    setDownloadStarted(false)
     setSavedSelectionHistory([])
     setSavedMessage("")
     setError("")
@@ -856,15 +873,16 @@ export default function ComposeStudioPage({
   }
 
   async function handlePreviewUpload() {
-    setLoadButtonClicked(true)
     if (!templateFile || !sourceFile) {
       alert("템플릿 파일과 source 파일을 모두 선택해주세요.")
       return
     }
 
+    let previewGeneration = workflowGenerationRef.current
     try {
       setUploading(true)
       resetPreviewState()
+      previewGeneration = workflowGenerationRef.current
 
       const formData = new FormData()
       formData.append("templateFile", templateFile)
@@ -881,6 +899,7 @@ export default function ComposeStudioPage({
       }
 
       const previewData: PreviewResponse = await previewRes.json()
+      if (previewGeneration !== workflowGenerationRef.current) return
       if (!previewData.sessionId) {
         throw new Error("sessionId를 받지 못했습니다.")
       }
@@ -909,6 +928,7 @@ export default function ComposeStudioPage({
 
       const templateData: DocumentViewResponse = await templateRes.json()
       const sourceData: DocumentViewResponse = await sourceRes.json()
+      if (previewGeneration !== workflowGenerationRef.current) return
 
       setTemplateParagraphs(templateData.paragraphs ?? [])
       setTemplateTables(templateData.tables ?? [])
@@ -924,9 +944,12 @@ export default function ComposeStudioPage({
       setTemplateBoxes([])
       setSourceBoxes([])
       setSelectedBoxId(null)
-      alert("파일을 정상적으로 불러왔습니다.")
+      setPreviewReady(true)
+      alert("정상적으로 파일을 불러왔습니다.")
     } catch (err) {
+      if (workflowGenerationRef.current !== previewGeneration) return
       console.error(err)
+      setSessionId("")
       setError(err instanceof Error ? err.message : "업로드 중 오류가 발생했습니다.")
     } finally {
       setUploading(false)
@@ -1099,10 +1122,13 @@ export default function ComposeStudioPage({
     }
 
     const apiKey = localStorage.getItem("apiKey") ?? ""
+    workflowGenerationRef.current += 1
+    const applyGeneration = workflowGenerationRef.current
 
     try {
       setApplying(true)
       setApplyResult(null)
+      setDownloadStarted(false)
 
       const res = await fetch(`${API_BASE_URL}/api/v1/compose/apply-all`, {
         method: "POST",
@@ -1141,6 +1167,7 @@ export default function ComposeStudioPage({
         throw new Error(message)
       }
 
+      if (applyGeneration !== workflowGenerationRef.current) return
       setApplyResult(data)
       setIsApplyResultOpen(false)
 
@@ -1156,6 +1183,7 @@ export default function ComposeStudioPage({
 
       alert("템플릿 서식으로 변경 완료하였습니다.")
     } catch (err) {
+      if (applyGeneration !== workflowGenerationRef.current) return
       console.error(err)
       alert(err instanceof Error ? err.message : "템플릿 서식으로 변경 실패했습니다.")
     } finally {
@@ -1164,6 +1192,7 @@ export default function ComposeStudioPage({
   }
 
   async function triggerDownload(downloadUrl: string, fileName?: string) {
+    const downloadGeneration = workflowGenerationRef.current
     try {
       const fullUrl = `${API_BASE_URL}${downloadUrl}`
       console.log("download fullUrl =", fullUrl)
@@ -1179,6 +1208,7 @@ export default function ComposeStudioPage({
       }
 
       const blob = await res.blob()
+      if (downloadGeneration !== workflowGenerationRef.current) return
       const objectUrl = URL.createObjectURL(blob)
 
       const link = document.createElement("a")
@@ -1189,6 +1219,7 @@ export default function ComposeStudioPage({
       link.remove()
 
       URL.revokeObjectURL(objectUrl)
+      setDownloadStarted(true)
     } catch (err) {
       console.error(err)
       alert(err instanceof Error ? err.message : "파일 다운로드에 실패했습니다.")
@@ -1403,7 +1434,7 @@ export default function ComposeStudioPage({
                 <button
                   onClick={handlePreviewUpload}
                   disabled={uploading}
-                  className={`inline-flex min-h-[58px] w-[200px] max-w-full items-center justify-center gap-2 rounded-none border border-[#c6c6c6] bg-white px-7 py-4 text-base font-semibold text-slate-700 hover:bg-[#f4f4f4] disabled:cursor-not-allowed disabled:opacity-60 ${uploadStep === "load" ? "autohwpx-upload-highlight" : ""}`}
+                  className={`inline-flex min-h-[58px] w-[200px] max-w-full items-center justify-center gap-2 rounded-none border border-[#c6c6c6] bg-white px-7 py-4 text-base font-semibold text-slate-700 hover:bg-[#f4f4f4] disabled:cursor-not-allowed disabled:opacity-60 ${guideStep === "loadFiles" ? "autohwpx-upload-highlight" : ""}`}
                 >
                   <FileUp className="h-5 w-5" />
                   {uploading ? "불러오는 중..." : "파일 불러오기"}
@@ -1411,17 +1442,27 @@ export default function ComposeStudioPage({
 
                 <button
                   onClick={handleApply}
-                  disabled={!sessionId || applying}
-                  className="inline-flex min-h-[58px] w-[200px] max-w-full items-center justify-center gap-2 rounded-none bg-[#0f62fe] px-7 py-4 text-base font-semibold text-white shadow-none hover:bg-[#0353e9] disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={!sessionId || !previewReady || applying}
+                  className={`inline-flex min-h-[58px] w-[200px] max-w-full items-center justify-center gap-2 rounded-none bg-[#0f62fe] px-7 py-4 text-base font-semibold text-white shadow-none hover:bg-[#0353e9] disabled:cursor-not-allowed disabled:opacity-50 ${guideStep === "execute" ? "autohwpx-tutorial-highlight" : ""}`}
                 >
                   <Sparkles className="h-5 w-5" />
                   {applying ? "적용 중..." : "실행하기"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => void triggerDownload(applyResult.downloadUrl, applyResult.fileId || "output.hwpx")}
+                  disabled={!applyResult?.downloadUrl || applying}
+                  className={`inline-flex min-h-[58px] w-[200px] max-w-full items-center justify-center gap-2 rounded-none bg-[#dc2626] px-7 py-4 text-base font-semibold text-white hover:bg-[#b91c1c] disabled:cursor-not-allowed disabled:opacity-50 ${guideStep === "saveFile" ? "autohwpx-tutorial-highlight" : ""}`}
+                >
+                  <Download className="h-5 w-5" />
+                  파일 저장하기
                 </button>
               </div>
 
               <section className="mb-6 grid gap-4 lg:grid-cols-2">
                 {/* 템플릿 */}
-                <div className={`border border-[#e0e0e0] bg-white p-6 ${uploadStep === "template" ? "autohwpx-upload-highlight" : ""}`}>
+                <div className={`border border-[#e0e0e0] bg-white p-6 ${guideStep === "uploadTemplate" ? "autohwpx-upload-highlight" : ""}`}>
                   <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-[#0f62fe]">
                     <Layers3 className="h-4 w-4" />
                     템플릿 파일
@@ -1461,7 +1502,7 @@ export default function ComposeStudioPage({
                 </div>
 
                 {/* 원본문서 */}
-                <div className={`border border-[#e0e0e0] bg-white p-6 ${uploadStep === "source" ? "autohwpx-upload-highlight" : ""}`}>
+                <div className={`border border-[#e0e0e0] bg-white p-6 ${guideStep === "uploadSource" ? "autohwpx-upload-highlight" : ""}`}>
                   <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-[#0f62fe]">
                     <Layers3 className="h-4 w-4" />
                     원본문서 파일
@@ -1521,7 +1562,7 @@ export default function ComposeStudioPage({
                 {mappingBusy ? <p role="status" className="mb-3 text-sm text-blue-600">연결을 저장하는 중입니다...</p> : null}
                 <div ref={mappingContainerRef} className="relative">
                   <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-                    <div ref={templateMappingRef} className="min-w-0 border border-[#e0e0e0] bg-[#fafafa] p-3">
+                    <div ref={templateMappingRef} className={`min-w-0 border border-[#e0e0e0] bg-[#fafafa] p-3 ${guideStep === "selectTemplateStyle" ? "autohwpx-tutorial-highlight" : ""}`}>
                       <div className="mb-3 flex items-center justify-between gap-2">
                         <span className="text-sm font-bold text-[#0f62fe]">템플릿 화면 · 서식 가져오기</span>
                         <div className="flex items-center gap-2 text-xs">
@@ -1544,7 +1585,7 @@ export default function ComposeStudioPage({
                         />
                       </div>
                     </div>
-                    <div ref={sourceMappingRef} className="min-w-0 border border-[#e0e0e0] bg-[#fafafa] p-3">
+                    <div ref={sourceMappingRef} className={`min-w-0 border border-[#e0e0e0] bg-[#fafafa] p-3 ${guideStep === "selectSourceTarget" ? "autohwpx-tutorial-highlight" : ""}`}>
                       <div className="mb-3 flex items-center justify-between gap-2">
                         <span className="text-sm font-bold text-[#0f62fe]">원본문서 화면 · 서식 적용하기</span>
                         <div className="flex items-center gap-2 text-xs">
