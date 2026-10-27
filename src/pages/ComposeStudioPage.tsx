@@ -310,6 +310,14 @@ export default function ComposeStudioPage({
 }: ComposeStudioPageProps) {
   const [templateFile, setTemplateFile] = useState<File | null>(null)
   const [sourceFile, setSourceFile] = useState<File | null>(null)
+  const [loadButtonClicked, setLoadButtonClicked] = useState(false)
+  const uploadStep = !templateFile
+    ? "template"
+    : !sourceFile
+      ? "source"
+      : !loadButtonClicked
+        ? "load"
+        : null
   const [uploading, setUploading] = useState(false)
   const [sessionId, setSessionId] = useState("")
   const [error, setError] = useState("")
@@ -658,14 +666,18 @@ export default function ComposeStudioPage({
       return
     }
 
+    const shouldShowUploadAlert = kind === "template" ? !templateFile : !sourceFile
     if (kind === "template") {
       setTemplateFile(file)
     } else {
       setSourceFile(file)
     }
+    setLoadButtonClicked(false)
     setSessionId("")
     resetPreviewState()
-    alert("파일 불러오기 버튼을 클릭해주세요.")
+    if (shouldShowUploadAlert) {
+      alert(kind === "template" ? "원본문서 파일을 업로드 해주세요." : "파일 불러오기 버튼을 클릭해주세요.")
+    }
   }
 
   async function loadSampleFile(url: string, filename: string, type: string) {
@@ -844,6 +856,7 @@ export default function ComposeStudioPage({
   }
 
   async function handlePreviewUpload() {
+    setLoadButtonClicked(true)
     if (!templateFile || !sourceFile) {
       alert("템플릿 파일과 source 파일을 모두 선택해주세요.")
       return
@@ -1377,26 +1390,6 @@ export default function ComposeStudioPage({
                       </p>
                     </div>
                   </div>
-
-                  <div className="flex flex-wrap items-center gap-3">
-                    <button
-                      onClick={handlePreviewUpload}
-                      disabled={uploading}
-                      className="inline-flex items-center gap-2 rounded-none bg-[#0f62fe] px-5 py-3 text-sm font-semibold text-white shadow-none hover:bg-[#0353e9] disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <FileUp className="h-4 w-4" />
-                      {uploading ? "불러오는 중..." : "파일 불러오기"}
-                    </button>
-
-                    <button
-                      onClick={handleApply}
-                      disabled={!sessionId || applying}
-                      className="inline-flex items-center gap-2 rounded-none border border-[#c6c6c6] bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-[#f4f4f4] disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <Sparkles className="h-4 w-4" />
-                      {applying ? "적용 중..." : "실행하기"}
-                    </button>
-                  </div>
                 </div>
               </header>
 
@@ -1406,9 +1399,29 @@ export default function ComposeStudioPage({
                 </div>
               ) : null}
 
+              <div className="mb-6 flex flex-wrap items-center justify-center gap-4">
+                <button
+                  onClick={handlePreviewUpload}
+                  disabled={uploading}
+                  className={`inline-flex min-h-[58px] w-[200px] max-w-full items-center justify-center gap-2 rounded-none border border-[#c6c6c6] bg-white px-7 py-4 text-base font-semibold text-slate-700 hover:bg-[#f4f4f4] disabled:cursor-not-allowed disabled:opacity-60 ${uploadStep === "load" ? "autohwpx-upload-highlight" : ""}`}
+                >
+                  <FileUp className="h-5 w-5" />
+                  {uploading ? "불러오는 중..." : "파일 불러오기"}
+                </button>
+
+                <button
+                  onClick={handleApply}
+                  disabled={!sessionId || applying}
+                  className="inline-flex min-h-[58px] w-[200px] max-w-full items-center justify-center gap-2 rounded-none bg-[#0f62fe] px-7 py-4 text-base font-semibold text-white shadow-none hover:bg-[#0353e9] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Sparkles className="h-5 w-5" />
+                  {applying ? "적용 중..." : "실행하기"}
+                </button>
+              </div>
+
               <section className="mb-6 grid gap-4 lg:grid-cols-2">
                 {/* 템플릿 */}
-                <div className={`border border-[#e0e0e0] bg-white p-6 ${templateFile && !sessionId ? "autohwpx-upload-pending" : ""}`}>
+                <div className={`border border-[#e0e0e0] bg-white p-6 ${uploadStep === "template" ? "autohwpx-upload-highlight" : ""}`}>
                   <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-[#0f62fe]">
                     <Layers3 className="h-4 w-4" />
                     템플릿 파일
@@ -1448,7 +1461,7 @@ export default function ComposeStudioPage({
                 </div>
 
                 {/* 원본문서 */}
-                <div className={`border border-[#e0e0e0] bg-white p-6 ${sourceFile && !sessionId ? "autohwpx-upload-pending" : ""}`}>
+                <div className={`border border-[#e0e0e0] bg-white p-6 ${uploadStep === "source" ? "autohwpx-upload-highlight" : ""}`}>
                   <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-[#0f62fe]">
                     <Layers3 className="h-4 w-4" />
                     원본문서 파일
