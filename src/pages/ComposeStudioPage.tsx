@@ -931,8 +931,8 @@ export default function ComposeStudioPage({
             ? data
             : data?.message || data?.error || "apply 실패"
 
-        if (message.includes("데모 버전에서는 하루 5회까지만 실행할 수 있습니다")) {
-          throw new Error("데모 버전에서는 하루 5회까지만 실행할 수 있습니다.")
+        if (message.includes("하루 최대 20회까지 실행할 수 있습니다")) {
+          throw new Error("하루 최대 20회까지 실행할 수 있습니다.")
         }
 
         throw new Error(message)
@@ -1224,10 +1224,26 @@ export default function ComposeStudioPage({
                     템플릿 파일
                   </div>
 
-                  {/* 🔥 업로드 제거 + 안내 */}
-                  <div className="flex h-[56px] items-center justify-center rounded-none border border-dashed border-[#c6c6c6] bg-[#f4f4f4] text-sm text-[#525252]">
-                    데모 버전에서는 샘플 파일만 사용 가능합니다
-                  </div>
+                  {/* 사용자 문서 업로드: 기존 preview API와 파일 상태를 그대로 사용 */}
+                  <label className={`flex h-[56px] items-center justify-center gap-2 rounded-none border border-dashed border-[#c6c6c6] bg-[#f4f4f4] text-sm font-medium text-[#525252] ${uploading ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:border-[#0f62fe] hover:bg-[#edf5ff] hover:text-[#0f62fe]"}`}>
+                    <FileUp className="h-4 w-4" />
+                    파일 업로드
+                    <input
+                      type="file"
+                      accept=".hwpx,.hwp"
+                      className="sr-only"
+                      disabled={uploading}
+                      onChange={(e) => {
+                        const file = e.currentTarget.files?.[0]
+                        if (file) {
+                          setTemplateFile(file)
+                          setSessionId("")
+                          resetPreviewState()
+                        }
+                        e.currentTarget.value = ""
+                      }}
+                    />
+                  </label>
 
                   <div className="mt-2 flex items-center justify-between gap-3">
                     <p className="text-sm text-[#525252]">
@@ -1252,10 +1268,26 @@ export default function ComposeStudioPage({
                     원본문서 파일
                   </div>
 
-                  {/* 🔥 업로드 제거 + 안내 */}
-                  <div className="flex h-[56px] items-center justify-center rounded-none border border-dashed border-[#c6c6c6] bg-[#f4f4f4] text-sm text-[#525252]">
-                    데모 버전에서는 샘플 파일만 사용 가능합니다
-                  </div>
+                  {/* 사용자 문서 업로드: 기존 preview API와 파일 상태를 그대로 사용 */}
+                  <label className={`flex h-[56px] items-center justify-center gap-2 rounded-none border border-dashed border-[#c6c6c6] bg-[#f4f4f4] text-sm font-medium text-[#525252] ${uploading ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:border-[#0f62fe] hover:bg-[#edf5ff] hover:text-[#0f62fe]"}`}>
+                    <FileUp className="h-4 w-4" />
+                    파일 업로드
+                    <input
+                      type="file"
+                      accept=".hwpx,.hwp"
+                      className="sr-only"
+                      disabled={uploading}
+                      onChange={(e) => {
+                        const file = e.currentTarget.files?.[0]
+                        if (file) {
+                          setSourceFile(file)
+                          setSessionId("")
+                          resetPreviewState()
+                        }
+                        e.currentTarget.value = ""
+                      }}
+                    />
+                  </label>
 
                   <div className="mt-2 flex items-center justify-between gap-3">
                     <p className="text-sm text-[#525252]">
